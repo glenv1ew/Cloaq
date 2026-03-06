@@ -33,7 +33,7 @@ func InitDevice() (Device, error) {
 		return nil, err
 	}
 
-	// добавим ipv6 адрес, чтобы ядро начало слать пакеты в этот туннель
+	// added ipv6 address
 	err = exec.Command("ip", "-6", "addr", "add", "fc00::1/64", "dev", name).Run()
 	if err != nil {
 		return nil, err

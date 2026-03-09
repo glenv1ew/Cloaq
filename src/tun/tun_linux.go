@@ -6,7 +6,6 @@ import (
 	"cloaq/src/tun/lintun"
 	"os"
 	"os/exec"
-	"syscall"
 )
 
 type linuxDevice struct {
@@ -42,14 +41,18 @@ func InitDevice() (Device, error) {
 	return &linuxDevice{name: name, f: f}, nil
 
 }
-
+// Read reads packets from the TUN device
 func (d *linuxDevice) Read(buf []byte) (int, error) {
-	n, err := syscall.Read(int(d.f.Fd()), buf)
-	if err != nil {
-		if err == syscall.EAGAIN || err == syscall.EWOULDBLOCK {
-			return 0, nil
-		}
-		return 0, err
+	if d.f == nil {
+		return 0, os.ErrClosed
 	}
+
+	// Use os.File.Read to leverage Go's non-blocking I/O and netpoller
+	n, err := d.f.Read(buf)
+	if err != nil {
+		return n, err
+	}
+
 	return n, nil
 }
+

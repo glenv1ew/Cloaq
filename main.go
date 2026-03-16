@@ -66,6 +66,19 @@ func main() {
 			return
 		}
 
+	case "monitor":
+		cmd := &cli.Monitor{}
+		err := cmd.Execute(args)
+		if err != nil {
+			return
+		}
+	case "version":
+		cmd := &cli.Version{}
+		err := cmd.Execute(args)
+		if err != nil {
+			return
+		}
+
 	default:
 		log.Printf("unknown command: %s", commandName)
 		log.Fatal("use help to see available commands")

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"os"
 
@@ -37,4 +38,22 @@ func Init() {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+// SaveConfig writes the provided configuration to the config.yaml file.
+func SaveConfig(cfg *Config) error {
+	// 1. Serialize the Config struct into YAML format
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config to yaml: %w", err)
+	}
+
+	// 2. Persist the data to the file system.
+	// Using 0644 (Read/Write for owner, Read for others).
+	err = os.WriteFile(configFileName, data, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	return nil
 }

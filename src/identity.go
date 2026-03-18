@@ -19,6 +19,8 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"os"
+	"path/filepath"
 )
 
 type Identity struct {
@@ -30,18 +32,63 @@ func (i *Identity) String() string {
 	return hex.EncodeToString(i.PublicKey.Bytes())
 }
 
-func GenerateIdentity() (*Identity, error) {
-	identity := &Identity{}
-	pKey, err := ecdh.X25519().GenerateKey(rand.Reader)
+func identityPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+
+	dir := filepath.Join(home, ".cloaq")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return "", err
+	}
+
+	return filepath.Join(dir, "identity.key"), nil
+}
+
+func saveIdentity(path string, key []byte) error {
+	return os.WriteFile(path, key, 0600)
+}
+
+func loadIdentity(path string) (*ecdh.PrivateKey, error) {
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	identity.PrivateKey = pKey
-	identity.PublicKey = pKey.Public().(*ecdh.PublicKey)
 
-	return identity, nil
+	return ecdh.X25519().NewPrivateKey(data)
 }
 
+func GenerateIdentity() (*Identity, error) {
+	path, err := identityPath()
+	if err != nil {
+		return nil, err
+	}
+
+	var priv *ecdh.PrivateKey
+
+	if _, err := os.Stat(path); err == nil {
+		priv, err = loadIdentity(path)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+
+		priv, err = ecdh.X25519().GenerateKey(rand.Reader)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := saveIdentity(path, priv.Bytes()); err != nil {
+			return nil, err
+		}
+	}
+
+	return &Identity{
+		PrivateKey: priv,
+		PublicKey:  priv.Public().(*ecdh.PublicKey),
+	}, nil
+}
 func (i *Identity) DeriveSharedKey(peerPub *ecdh.PublicKey) ([]byte, error) {
 	// Perform ECDH key exchange
 	secret, err := i.PrivateKey.ECDH(peerPub)

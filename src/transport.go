@@ -38,8 +38,15 @@ func NewTransport(listenAddr string) (*Transport, error) {
 	}, nil
 }
 
-func (t *Transport) SendTo(dst *net.UDPAddr, data []byte) error {
-	_, err := t.conn.WriteToUDP(data, dst)
+func (t *Transport) SendTo(addr string, data []byte) error {
+	// Convert string "ip:port" to the correct pointer type
+	udpAddr, err := net.ResolveUDPAddr("udp", addr)
+	if err != nil {
+		return err
+	}
+
+	// FIX: Use udpAddr (*net.UDPAddr), NOT a uint8
+	_, err = t.conn.WriteToUDP(data, udpAddr)
 	return err
 }
 

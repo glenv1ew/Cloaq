@@ -16,13 +16,12 @@ package cli
 
 import (
 	network "cloaq/src"
-	"cloaq/src/monitor"
-	"encoding/hex"
+	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 
-	"cloaq/src/tun"
 	"log"
-	"runtime"
-	"sync/atomic"
 )
 
 type Run struct {
@@ -40,71 +39,37 @@ func (s *Run) Description() string {
 	return "display configuration run"
 }
 func (s *Run) Execute(args []string) error {
-	log.Println("starting cloaq...")
-	log.Println("os:", runtime.GOOS, "arch:", runtime.GOARCH)
+	fmt.Println(`_________ .__                       
+\_   ___ \|  |   _________    ______
+/    \  \/|  |  /  _ \__  \  / ____/
+\     \___|  |_(  <_> ) __ \< <_|  |
+ \______  /____/\____(____  /\__   |
+        \/                \/    |__|`)
 
-	identity, err := network.CreateOrLoadIdentity()
+	if os.Geteuid() != 0 {
+		log.Fatal("ERROR: Run as root (sudo) to manage TUN device.")
+	}
+
+	node, err := NewCloaqNode(s.peers)
 	if err != nil {
-		log.Fatal("identity creation failed: ", err)
+		log.Fatal("Node init failed:", err)
 	}
 
-	nodeID := hex.EncodeToString(identity.PublicKey.Bytes())
-	log.Println("node identity loaded:", nodeID[:16]+"...")
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		node.Shutdown()
+		os.Exit(0)
+	}()
 
-	tr, err := network.NewTransport(":9000")
-	if err != nil {
-		log.Fatal("transport init error:", err)
-	}
-
-	dev, err := tun.InitDevice("cloaq0")
-	if err != nil {
-		log.Fatal("tunnel init error:", err)
-	}
-	defer func(dev *tun.LinuxDevice) {
-		err := dev.Close()
-		if err != nil {
-
-		}
-	}(dev)
-
-	if err := dev.Start(); err != nil {
-		log.Fatal("vnic start error:", err)
-	}
-	log.Println("vnic initialized:", dev.Name())
+	log.Printf("Node %s started on fc00::1", node.ID[:12])
 
 	packetChan := make(chan network.Packet, 100)
-	m := &monitor.Monitor{}
-
-	network.SafeRuntime("Monitor", func() {
-		if err := m.Execute(nil); err != nil {
-			log.Printf("monitor error: %v", err)
-		}
-	})
-
-	network.SafeRuntime("ReadLoop", func() {
-		if err := network.ReadLoop(dev, packetChan); err != nil {
-			log.Printf("readloop error: %v", err)
-		}
-	})
-
-	log.Println("ipv6 tun gateway created. processing traffic...")
+	node.Run(packetChan)
 
 	for pkt := range packetChan {
-
-		if len(s.peers) > 0 {
-			target := s.peers[0]
-
-			onionedData := network.Encapsulate(pkt.Data)
-
-			err := tr.SendTo(target, onionedData)
-			if err == nil {
-
-				atomic.AddUint64(&monitor.BytesSent, uint64(len(onionedData)))
-				log.Printf("[sent] %d bytes to %s from %s", len(onionedData), target, nodeID[:8])
-			} else {
-				log.Printf("[error] send failed to %s: %v", target, err)
-			}
-		}
+		node.ProcessPacket(pkt)
 	}
 
 	return nil

@@ -15,6 +15,7 @@
 package network
 
 import (
+	"log"
 	"net"
 )
 
@@ -36,6 +37,14 @@ func NewTransport(listenAddr string) (*Transport, error) {
 	return &Transport{
 		conn: conn,
 	}, nil
+}
+
+func (t *Transport) Close() error {
+	if t.conn != nil {
+		log.Println("[-] Closing UDP transport socket...")
+		return t.conn.Close()
+	}
+	return nil
 }
 
 func (t *Transport) SendTo(addr string, data []byte) error {

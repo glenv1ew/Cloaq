@@ -52,7 +52,7 @@ func (s *Run) Execute(args []string) error {
 
 	node, err := NewCloaqNode(s.peers)
 	if err != nil {
-		log.Fatal("Node init failed:", err)
+		log.Fatal("node init failed:", err)
 	}
 
 	sigChan := make(chan os.Signal, 1)
@@ -63,7 +63,7 @@ func (s *Run) Execute(args []string) error {
 		os.Exit(0)
 	}()
 
-	log.Printf("Node %s started on fc00::1", node.ID[:12])
+	log.Printf("node %s started on fc00::1", node.ID[:12])
 
 	packetChan := make(chan network.Packet, 100)
 	node.Run(packetChan)
